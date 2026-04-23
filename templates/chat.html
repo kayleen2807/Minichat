@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <title>Chat</title>
+</head>
+<body>
+    <h2>Mini Chat en Tiempo Real con Python en Flask</h2>
+    <input type="text" id="msg" placeholder="Escribe tu mensaje aquí...">
+    <button type="button" onclick="sendMessage()">Enviar</button>
+
+    <ul id="messages"></ul>
+
+    <script>
+        var socket = io(); // Conexión al servidor Socket.IO
+        socket.on("message", function(msg){
+            var li = document.createElement("li"); //craer una lisa para mostrar los mensajes
+            li.innerHTML = msg; //asignar el mensaje al contenido de la lista
+            document.getElementById("messages").appendChild(li); //agregar el mensaje a la lista de mensajes
+        })
+
+        function sendMessage(){
+            var input = document.getElementById("msg"); //obtener el valor del input
+            socket.send(input.value); //enviar el mensaje al servidor y se guarda el valor del input
+            input.value = ""; //limpiar el input después de enviar el mensaje
+        }
+    </script>
+</body>
+</html>
