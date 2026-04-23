@@ -1,31 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <title>Chat</title>
+<meta charset="UTF-8">
+<title>Chat con Salas</title>
 </head>
 <body>
-    <h2>Mini Chat en Tiempo Real con Python en Flask</h2>
-    <input type="text" id="msg" placeholder="Escribe tu mensaje aquí...">
-    <button type="button" onclick="sendMessage()">Enviar</button>
 
-    <ul id="messages"></ul>
+<h2>Chat con Salas</h2>
 
-    <script>
-        var socket = io(); // Conexión al servidor Socket.IO
-        socket.on("message", function(msg){
-            var li = document.createElement("li"); //craer una lisa para mostrar los mensajes
-            li.innerHTML = msg; //asignar el mensaje al contenido de la lista
-            document.getElementById("messages").appendChild(li); //agregar el mensaje a la lista de mensajes
-        })
+Usuario: <input id="usuario">
+<br><br>
+Sala: <input id="sala">
+<br><br>
+<button onclick="entrar()">Entrar a sala</button>
+<button onclick="salir()">Salir de sala</button>
 
-        function sendMessage(){
-            var input = document.getElementById("msg"); //obtener el valor del input
-            socket.send(input.value); //enviar el mensaje al servidor y se guarda el valor del input
-            input.value = ""; //limpiar el input después de enviar el mensaje
-        }
-    </script>
+<hr>
+
+<input id="msg" placeholder="Escribe mensaje" onkeydown="if(event.key==='Enter') enviar()">
+<button onclick="enviar()">Enviar</button>
+
+<ul id="chat"></ul>
+
+<script>
+let ws;
+let usuario, sala;
+
+function agregar(texto) {
+  const li = document.createElement("li");
+  li.textContent = texto;
+  document.getElementById("chat").appendChild(li);
+}
+
+function entrar() {
+  usuario = document.getElementById("usuario").value.trim();
+  sala = document.getElementById("sala").value.trim();
+  if (!usuario || !sala) return alert("Escribe usuario y sala");
+
+  ws = new WebSocket("ws://localhost:8765");
+
+  ws.onopen = function() {
+    ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+  };
+
+  ws.onmessage = function(e) {
+    const d = JSON.parse(e.data);
+    agregar(d.texto);
+  };
+
+  ws.onclose = function() {
+    agregar("--- Desconectado del servidor ---");
+  };
+
+  ws.onerror = function() {
+    agregar("--- Error de conexión ---");
+  };
+}
+
+function salir() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ tipo: "salir" }));
+  }
+}
+
+function enviar() {
+  const msg = document.getElementById("msg");
+  const texto = msg.value.trim();
+  if (!texto) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return alert("No estás en ninguna sala");
+  ws.send(JSON.stringify({ tipo: "mensaje", texto }));
+  msg.value = "";
+}
+</script>
 </body>
 </html>
