@@ -10,7 +10,13 @@
 
 Usuario: <input id="usuario">
 <br><br>
-Sala: <input id="sala">
+Sala:
+<select id="sala">
+  <option value="">-- Elige una sala --</option>
+  <option value="chocoboyo">chocoboyo</option>
+  <option value="colita de rana">colita de rana</option>
+  <option value="ok mañana">ok mañana</option>
+</select>
 <br><br>
 <button onclick="entrar()">Entrar a sala</button>
 <button onclick="salir()">Salir de sala</button>
@@ -34,8 +40,8 @@ function agregar(texto) {
 
 function entrar() {
   usuario = document.getElementById("usuario").value.trim();
-  sala = document.getElementById("sala").value.trim();
-  if (!usuario || !sala) return alert("Escribe usuario y sala");
+  sala = document.getElementById("sala").value;
+  if (!usuario || !sala) return alert("Escribe tu usuario y elige una sala");
 
   ws = new WebSocket("ws://localhost:8765");
 
@@ -60,6 +66,8 @@ function entrar() {
 function salir() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ tipo: "salir" }));
+    agregar(`--- Saliste de la sala ${sala} ---`);
+    sala = null;
   }
 }
 
