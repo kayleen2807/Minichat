@@ -1,14 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Chat con Salas</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat con Salas</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; }
+    #estado { margin-left: 8px; font-weight: 600; }
+    #estado.ok { color: #0a7a31; }
+    #estado.bad { color: #b00020; }
+    #chat { padding-left: 18px; }
+  </style>
 </head>
 <body>
 
 <h2>Chat con Salas</h2>
 
 Usuario: <input id="usuario">
+<span id="estado" class="bad">Desconectado</span>
 <br><br>
 Sala:
 <select id="sala">
@@ -29,8 +38,10 @@ Sala:
 <ul id="chat"></ul>
 
 <script>
-let ws;
-let usuario, sala;
+let ws = null;
+let usuario = null;
+let sala = null;
+let mensajePendiente = null;
 
 function agregar(texto) {
   const li = document.createElement("li");
@@ -38,15 +49,32 @@ function agregar(texto) {
   document.getElementById("chat").appendChild(li);
 }
 
-function entrar() {
-  usuario = document.getElementById("usuario").value.trim();
-  sala = document.getElementById("sala").value;
-  if (!usuario || !sala) return alert("Escribe tu usuario y elige una sala");
+function setEstado(texto, ok) {
+  const el = document.getElementById("estado");
+  el.textContent = texto;
+  el.className = ok ? "ok" : "bad";
+}
 
-  ws = new WebSocket("ws://localhost:8765");
+function wsUrl() {
+  let host = window.location.hostname || "127.0.0.1";
+  if (host === "localhost") host = "127.0.0.1";
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${host}:8765`;
+}
+
+function ensureWsConectado() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+  ws = new WebSocket(wsUrl());
 
   ws.onopen = function() {
-    ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+    setEstado("Conectado", true);
+    if (usuario && sala) ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+    if (mensajePendiente) {
+      const texto = mensajePendiente;
+      mensajePendiente = null;
+      if (sala) ws.send(JSON.stringify({ tipo: "mensaje", texto }));
+    }
   };
 
   ws.onmessage = function(e) {
@@ -55,27 +83,62 @@ function entrar() {
   };
 
   ws.onclose = function() {
+    setEstado("Desconectado", false);
     agregar("--- Desconectado del servidor ---");
+    ws = null;
   };
 
   ws.onerror = function() {
+    setEstado("Error", false);
     agregar("--- Error de conexión ---");
   };
 }
 
-function salir() {
+function entrar() {
+  usuario = document.getElementById("usuario").value.trim();
+  sala = document.getElementById("sala").value;
+  if (!usuario || !sala) return alert("Escribe tu usuario y elige una sala");
+
+  ensureWsConectado();
   if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+  }
+}
+
+function salir() {
+  if (ws && ws.readyState === WebSocket.OPEN && sala) {
     ws.send(JSON.stringify({ tipo: "salir" }));
     agregar(`--- Saliste de la sala ${sala} ---`);
-    sala = null;
   }
+  sala = null;
 }
 
 function enviar() {
   const msg = document.getElementById("msg");
   const texto = msg.value.trim();
   if (!texto) return;
-  if (!ws || ws.readyState !== WebSocket.OPEN) return alert("No estás en ninguna sala");
+  // Si el usuario ya llenó los campos pero no presionó "Entrar a sala", entramos automáticamente.
+  if (!sala) {
+    const u = document.getElementById("usuario").value.trim();
+    const s = document.getElementById("sala").value;
+    if (u && s) {
+      mensajePendiente = texto;
+      msg.value = "";
+      usuario = u;
+      sala = s;
+      ensureWsConectado();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+        if (mensajePendiente) {
+          ws.send(JSON.stringify({ tipo: "mensaje", texto: mensajePendiente }));
+          mensajePendiente = null;
+        }
+      }
+      return;
+    }
+  }
+
+  if (!ws || ws.readyState !== WebSocket.OPEN || !sala) return alert("No estás en ninguna sala");
   ws.send(JSON.stringify({ tipo: "mensaje", texto }));
   msg.value = "";
 }
