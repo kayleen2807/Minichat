@@ -4,144 +4,335 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chat con Salas</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
   <style>
-    body { font-family: "Times New Roman", Times, serif; }
-    #estado { margin-left: 8px; font-weight: 600; }
-    #estado.ok { color: #0a7a31; }
-    #estado.bad { color: #b00020; }
-    #chat { padding-left: 18px; }
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0d0f;
+      --surface:  #16161a;
+      --border:   #2a2a30;
+      --accent:   #7cffd4;
+      --accent2:  #ff6b6b;
+      --text:     #e8e8f0;
+      --muted:    #6b6b80;
+      --system:   #ffcc55;
+      --radius:   10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    input, select {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      min-width: 0;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--surface); }
+
+    .btn-row { display: flex; gap: 8px; }
+
+    button {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.35; cursor: default; }
+
+    .btn-primary  { background: var(--accent);  color: #000; }
+    .btn-danger   { background: var(--accent2); color: #fff; }
+    .btn-send     { background: var(--accent);  color: #000; padding: 9px 22px; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent2);
+      flex-shrink: 0;
+    }
+    .dot.ok { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    #estado-txt { color: var(--muted); }
+
+    .members-bar {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      margin-bottom: 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      min-height: 32px;
+    }
+    .members-bar span { color: var(--accent); }
+
+    #chat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      height: 300px;
+      overflow-y: auto;
+      padding: 12px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scroll-behavior: smooth;
+    }
+
+    .msg {
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      word-break: break-word;
+      max-width: 90%;
+    }
+    .msg.sistema {
+      align-self: center;
+      background: transparent;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--system);
+      border: 1px solid #3a3500;
+      border-radius: 20px;
+      padding: 4px 14px;
+    }
+    .msg.propio {
+      align-self: flex-end;
+      background: #1a3530;
+      border: 1px solid #2a5548;
+    }
+    .msg.propio .nick { color: var(--accent); font-weight: 600; }
+    .msg.ajeno {
+      align-self: flex-start;
+      background: #1e1e26;
+      border: 1px solid var(--border);
+    }
+    .msg.ajeno .nick { color: #b07cff; font-weight: 600; }
+    .nick { font-family: 'Space Mono', monospace; font-size: 0.7rem; display: block; margin-bottom: 2px; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .input-row input { flex: 1; }
+
+    #chat-box::-webkit-scrollbar { width: 4px; }
+    #chat-box::-webkit-scrollbar-track { background: transparent; }
+    #chat-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   </style>
 </head>
 <body>
 
-<h2>Chat con Salas</h2>
+<h1>Chat con Salas</h1>
+<p class="subtitle">Flask · Socket.IO · Tiempo real</p>
 
-Usuario: <input id="usuario">
-<span id="estado" class="bad">Desconectado</span>
-<br><br>
-Sala:
-<select id="sala">
-  <option value="">-- Elige una sala --</option>
-  <option value="chocoboyo">chocoboyo</option>
-  <option value="colita de rana">colita de rana</option>
-  <option value="ok mañana">ok mañana</option>
-</select>
-<br><br>
-<button onclick="entrar()">Entrar a sala</button>
-<button onclick="salir()">Salir de sala</button>
+<div class="card">
 
-<hr>
+  <div class="status-bar">
+    <div class="dot" id="dot"></div>
+    <span id="estado-txt">Desconectado</span>
+  </div>
 
-<input id="msg" placeholder="Escribe mensaje" onkeydown="if(event.key==='Enter') enviar()">
-<button onclick="enviar()">Enviar</button>
+  <div class="row">
+    <label>Usuario</label>
+    <input id="usuario" placeholder="Tu nombre..." maxlength="24">
+  </div>
 
-<ul id="chat"></ul>
+  <div class="row">
+    <label>Sala</label>
+    <select id="sala">
+      <option value="">-- Elige una sala --</option>
+      <option value="chocoboyo">chocoboyo</option>
+      <option value="colita de rana">colita de rana</option>
+      <option value="ok mañana">ok mañana</option>
+    </select>
+  </div>
+
+  <div class="btn-row" style="margin-bottom:14px">
+    <button class="btn-primary" onclick="entrar()">Entrar a sala</button>
+    <button class="btn-danger"  onclick="salir()">Salir de sala</button>
+  </div>
+
+  <div class="members-bar" id="members">En sala: <span>—</span></div>
+
+  <div id="chat-box"></div>
+
+  <div class="input-row">
+    <input id="msg" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter') enviar()">
+    <button class="btn-send" onclick="enviar()">Enviar</button>
+  </div>
+
+</div>
 
 <script>
-let ws = null;
-let usuario = null;
-let sala = null;
-let mensajePendiente = null;
+  // Socket.IO se conecta automáticamente al mismo servidor que sirvió el HTML
+  const socket = io();
 
-function agregar(texto) {
-  const li = document.createElement("li");
-  li.textContent = texto;
-  document.getElementById("chat").appendChild(li);
-}
+  let miUsuario = null;
+  let miSala    = null;
 
-function setEstado(texto, ok) {
-  const el = document.getElementById("estado");
-  el.textContent = texto;
-  el.className = ok ? "ok" : "bad";
-}
+  // ── Estado de conexión ──────────────────────────────────────────────────
+  socket.on("connect", () => setEstado(true));
+  socket.on("disconnect", () => {
+    setEstado(false);
+    agregarSistema("Desconectado del servidor");
+  });
 
-function wsUrl() {
-  let host = window.location.hostname || "127.0.0.1";
-  if (host === "localhost") host = "127.0.0.1";
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${host}:8765`;
-}
-
-function ensureWsConectado() {
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-
-  ws = new WebSocket(wsUrl());
-
-  ws.onopen = function() {
-    setEstado("Conectado", true);
-    if (usuario && sala) ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
-    if (mensajePendiente) {
-      const texto = mensajePendiente;
-      mensajePendiente = null;
-      if (sala) ws.send(JSON.stringify({ tipo: "mensaje", texto }));
-    }
-  };
-
-  ws.onmessage = function(e) {
-    const d = JSON.parse(e.data);
-    agregar(d.texto);
-  };
-
-  ws.onclose = function() {
-    setEstado("Desconectado", false);
-    agregar("--- Desconectado del servidor ---");
-    ws = null;
-  };
-
-  ws.onerror = function() {
-    setEstado("Error", false);
-    agregar("--- Error de conexión ---");
-  };
-}
-
-function entrar() {
-  usuario = document.getElementById("usuario").value.trim();
-  sala = document.getElementById("sala").value;
-  if (!usuario || !sala) return alert("Escribe tu usuario y elige una sala");
-
-  ensureWsConectado();
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
+  function setEstado(ok) {
+    document.getElementById("dot").className        = "dot" + (ok ? " ok" : "");
+    document.getElementById("estado-txt").textContent = ok ? "Conectado" : "Desconectado";
   }
-}
 
-function salir() {
-  if (ws && ws.readyState === WebSocket.OPEN && sala) {
-    ws.send(JSON.stringify({ tipo: "salir" }));
-    agregar(`--- Saliste de la sala ${sala} ---`);
-  }
-  sala = null;
-}
+  // ── Mensajes entrantes ──────────────────────────────────────────────────
+  socket.on("sistema", d => agregarSistema(d.texto));
 
-function enviar() {
-  const msg = document.getElementById("msg");
-  const texto = msg.value.trim();
-  if (!texto) return;
-  // Si el usuario ya llenó los campos pero no presionó "Entrar a sala", entramos automáticamente.
-  if (!sala) {
+  socket.on("mensaje", d => {
+    const esPropio = d.usuario === miUsuario;
+    agregarMensaje(d.usuario, d.texto, esPropio);
+  });
+
+  socket.on("miembro_lista", d => {
+    const nombres = d.usuarios.length ? d.usuarios.join(", ") : "—";
+    document.getElementById("members").innerHTML = `En sala: <span>${nombres}</span>`;
+  });
+
+  socket.on("error", d => agregarSistema("⚠ " + d.texto));
+
+  // ── Acciones del usuario ────────────────────────────────────────────────
+  function entrar() {
     const u = document.getElementById("usuario").value.trim();
     const s = document.getElementById("sala").value;
-    if (u && s) {
-      mensajePendiente = texto;
-      msg.value = "";
-      usuario = u;
-      sala = s;
-      ensureWsConectado();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ tipo: "entrar", usuario, sala }));
-        if (mensajePendiente) {
-          ws.send(JSON.stringify({ tipo: "mensaje", texto: mensajePendiente }));
-          mensajePendiente = null;
-        }
-      }
-      return;
-    }
+    if (!u || !s) { alert("Completa tu usuario y elige una sala"); return; }
+    miUsuario = u;
+    miSala    = s;
+    socket.emit("entrar", { usuario: u, sala: s });
   }
 
-  if (!ws || ws.readyState !== WebSocket.OPEN || !sala) return alert("No estás en ninguna sala");
-  ws.send(JSON.stringify({ tipo: "mensaje", texto }));
-  msg.value = "";
-}
+  function salir() {
+    if (!miSala) return;
+    socket.emit("salir", { sala: miSala });
+    miSala = null;
+    document.getElementById("members").innerHTML = `En sala: <span>—</span>`;
+  }
+
+  function enviar() {
+    const input = document.getElementById("msg");
+    const texto = input.value.trim();
+    if (!texto) return;
+    if (!miSala) {
+      // Auto-entrar si tiene usuario y sala seleccionados
+      const u = document.getElementById("usuario").value.trim();
+      const s = document.getElementById("sala").value;
+      if (u && s) { miUsuario = u; miSala = s; socket.emit("entrar", { usuario: u, sala: s }); }
+      else { alert("Entra a una sala primero"); return; }
+    }
+    socket.emit("mensaje", { usuario: miUsuario, sala: miSala, texto });
+    input.value = "";
+  }
+
+  // ── Helpers de UI ───────────────────────────────────────────────────────
+  function agregarSistema(txt) {
+    const div = document.createElement("div");
+    div.className = "msg sistema";
+    div.textContent = txt;
+    pushChat(div);
+  }
+
+  function agregarMensaje(nick, txt, propio) {
+    const div = document.createElement("div");
+    div.className = "msg " + (propio ? "propio" : "ajeno");
+    div.innerHTML = `<span class="nick">${escHtml(nick)}</span>${escHtml(txt)}`;
+    pushChat(div);
+  }
+
+  function pushChat(el) {
+    const box = document.getElementById("chat-box");
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
 </script>
 </body>
 </html>
